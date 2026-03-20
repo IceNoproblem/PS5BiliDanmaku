@@ -12,6 +12,7 @@ RTMP推流监控脚本
 """
 
 import sys
+import os
 
 # 修复 Windows 控制台编码问题
 if sys.platform == 'win32':
@@ -32,21 +33,13 @@ from typing import Dict, Optional
 
 # ==================== 配置区 ====================
 
-# danmaku_forward.py的API地址
-DANMAKU_API_URL = "http://127.0.0.1:5000/api/rtmp/status/update"
+# 优先使用环境变量，否则使用默认值
+DANMAKU_API_URL = os.getenv('DANMAKU_API_URL', 'http://127.0.0.1:5000/api/rtmp/status/update')
+NGINX_RTMP_HOST = os.getenv('NGINX_RTMP_HOST', 'nginx-rtmp')
+NGINX_RTMP_STAT_PORT = os.getenv('NGINX_RTMP_STAT_PORT', '8080')
 
-# RTMP服务器监控API地址（根据实际使用的服务调整）
-# 方式1: 如果使用本地nginx-rtmp（推荐）
-RTMP_MONITOR_URL = "http://127.0.0.1:8080/stat"
-
-# 方式2: 如果使用远程bao3/playstation
-# RTMP_MONITOR_URL = "http://192.168.1.100:8080"
-
-# 方式3: 如果使用nginx-rtmp-module（本地）
-# RTMP_MONITOR_URL = "http://127.0.0.1:8080/stat"
-
-# 方式4: 如果使用自定义API，填写实际地址
-# RTMP_MONITOR_URL = "http://192.168.1.100:8080/api/status"
+# RTMP服务器监控API地址（使用 Docker 容器名称）
+RTMP_MONITOR_URL = f"http://{NGINX_RTMP_HOST}:{NGINX_RTMP_STAT_PORT}/stat"
 
 # 监控间隔（秒）
 CHECK_INTERVAL = 2
@@ -354,7 +347,9 @@ if __name__ == "__main__":
     # 测试连接
     if not test_connection():
         logger.error("连接测试失败，请检查配置")
-        input("按回车键退出...")
+        # 在 Docker 环境中不要使用 input()，直接退出
+        if not os.getenv('DOCKER_ENV'):
+            input("按回车键退出...")
         exit(1)
 
     # 启动监控

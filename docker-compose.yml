@@ -7,7 +7,7 @@ services:
     ports:
       - "1935:1935"    # RTMP推流端口
       - "8081:8080"    # RTMP统计页面
-      - "8082:80"        # HTTP访问（可选）
+      - "8082:80"      # HTTP访问（可选）
     volumes:
       - ./nginx-rtmp/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx-rtmp/logs:/var/log/nginx
@@ -50,6 +50,12 @@ services:
       - nginx-rtmp
       - danmaku-system
     restart: unless-stopped
+    environment:
+      # 使用环境变量传递 nginx 容器地址
+      - NGINX_RTMP_HOST=nginx-rtmp
+      - NGINX_RTMP_STAT_PORT=8080
+      - DANMAKU_API_URL=http://danmaku-system:5000/api/rtmp/status/update
+      - DOCKER_ENV=true  # 标记 Docker 环境，禁用 input()
     networks:
       - ps5-danmaku-network
 
