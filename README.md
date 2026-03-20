@@ -1,318 +1,728 @@
-一款轻量级工具，通过IRC协议将B站直播弹幕转发到PS5，内置rtmp推流，可以让PS5不使用采集卡进行直播。
-支持全Web界面配置，Docker一键部署，可配合PS5内置直播程序使用。
+# PS5BiliDanmaku - Docker 版本
 
-特别说明：本人完全是非专业开发者，无任何编程和开源相关工作经验，纯属闲得无聊、凭着对PS5和B站的热爱，瞎折腾出了这个小工具。开发依赖AI工具辅助，由于对开发规范、开源规则完全不熟悉，若项目中存在僭越任何规则、潜规则，或是不符合专业标准的地方，还请各位技术大佬多多海涵，也非常欢迎大家提出修改建议，帮我完善这个小工具。
+<div align="center">
 
-## 🔍 核心原理（简单介绍）
+**把 Bilibili 直播弹幕转发到 PS5 的轻量工具**
 
-本工具核心分为4个模块，流程简单易懂，无需专业知识也能理解：
+![Version](https://img.shields.io/badge/version-v1.0.0-blue)
+![Docker](https://img.shields.io/badge/docker-supported-brightgreen)
+![License](https://img.shields.io/badge/license-GPL--3.0-green)
 
-1. 弹幕抓取模块：通过调用B站开放直播API，定时抓取指定直播间的实时弹幕（默认3秒一次，可在Web面板调整），并对弹幕进行去重处理，避免重复转发。
+**容器化一键部署 | 跨平台支持 | 环境隔离**
 
-2. 协议转换模块：将抓取到的B站弹幕，转换为PS5可识别的IRC协议（PS5内置直播程序支持IRC弹幕接收，这是PS5接收外部弹幕的常用方式）。
+[快速开始](#快速开始) • [详细部署](#详细部署指南) • [常见问题](#常见问题) • [更新日志](#版本更新日志)
 
-3. 转发与服务模块：通过IRC服务将转换后的弹幕转发到PS5，同时提供Web配置面板，方便用户修改直播间ID、频道名等核心参数，无需修改代码即可完成配置。
+</div>
 
-4. rtmp模块：抓取PS5推送的视频流，生成地址码。
+---
 
-整体流程：通过路由器或其他设备劫持PS5的视频流 → 生成视频地址方便推送给直播软件或平台 → 读取B站直播间弹幕 → 工具抓取并转换协议 → IRC服务转发 → PS5（内置直播程序）接收并显示。
+## 📖 项目简介
 
-## 📚 引用说明
+PS5BiliDanmaku 是一款轻量级工具，通过 IRC 协议将 B 站直播弹幕转发到 PS5。Docker 版本提供容器化部署，一键启动所有服务，完美支持 Linux、Windows 和 macOS 系统。
 
-本项目开发过程中，参考并使用了以下开源项目/工具的相关能力，在此表示感谢：
+### ✨ 核心功能
 
-- Python 第三方库：Flask（Web服务）、requests（HTTP请求）
+- ✅ **实时弹幕抓取与转发**：支持去重，延迟极低
+- ✅ **全 Web 可视化配置**：http://localhost:5000，无需命令行
+- ✅ **Docker 容器化部署**：环境隔离，一键启动
+- ✅ **内置 RTMP 推流服务器**：支持 PS5 不使用采集卡进行直播
+- ✅ **跨平台支持**：Windows、Linux、macOS 统一部署
+- ✅ **自动重启机制**：服务异常自动恢复
+- ✅ **数据持久化**：配置和日志自动保存
 
-- Docker 及 Docker Compose（容器化部署）
+---
 
-- B站开放直播API（弹幕数据抓取）
+## 🎯 系统要求
 
-- 开源项目参考：bao3/playstation（https://github.com/bao3/playstation）
+### 硬件要求
 
-## ✨ 功能特性
+- **CPU**：双核及以上
+- **内存**：2GB 及以上
+- **磁盘**：5GB 可用空间
 
-- 实时抓取B站直播间弹幕，无延迟转发，支持弹幕去重，避免重复显示
+### 软件要求
 
-- 自动转换弹幕为IRC协议，完美适配PS5接收，无需额外插件
+- **操作系统**：Windows 10/11、Ubuntu 18.04+、CentOS 7+、macOS 10.14+
+- **Docker**：20.0 及以上
+- **Docker Compose**：2.0 及以上
+- **网络**：PS5 与部署设备在同一局域网
 
-- 全Web可视化配置面板，无需修改任何代码，新手也能快速上手
+### 端口要求
 
-- Docker一键部署，支持自动重启、异常重连，保障长期稳定运行
+请确保以下端口未被占用：
 
-- 完整日志记录，便于排查运行问题，快速定位异常原因
+| 端口 | 用途 | 说明 |
+|------|------|------|
+| 1935 | RTMP 推流 | PS5 推流端口 |
+| 5000 | Web 管理界面 | 配置和监控 |
+| 6667 | IRC 服务 | PS5 IRC 连接 |
+| 8080 | RTMP 统计页面 | 推流状态监控 |
+| 80 | HTTP 服务（可选） | 访问统计页面 |
 
-- 支持使用PS5内置直播程序进行直播，弹幕可直接在PS5直播画面中显示，无需额外外接设备
+---
 
-## 📋 部署要求（补充完整）
+## 🚀 快速开始
 
-- 系统要求：支持Docker的Linux、Windows、macOS系统（推荐Linux服务器）
+### Windows 用户
 
-- 软件依赖：已安装 Docker 20.0+ 及 Docker Compose 2.0+
+#### 前置步骤
 
-- 网络要求：PS5与部署机器处于同一局域网，且网络通畅无防火墙拦截
+1. **安装 Docker Desktop**
 
-- 端口要求：8081、5000端口（Web配置面板）、6667端口（IRC弹幕服务）未被占用
+   下载地址：https://www.docker.com/products/docker-desktop/
 
-- 权限要求：部署机器需拥有管理员/root权限（用于Docker操作、端口占用）
+2. **启动 Docker Desktop**
 
-- 网络访问：部署机器需能正常访问B站直播API（无网络代理限制）,ps5有加速器。
-  
+   安装完成后，启动 Docker Desktop 并等待状态变为 "Docker Desktop is running"
 
-
-
-
-
-
-
-
-## 🚀 快速部署（新手友好版）
-
-以下步骤为新手专属，每一步都有详细说明，跟着操作即可完成部署，无需专业技术基础。
-
-### 1. 准备工作（必做）
-
-确保你的部署机器（电脑/服务器）已满足「部署要求」，重点确认：
-
-- 已安装 Docker，一般Nas或者软路由自带docker（ 若未安装，可参考 Docker 官方教程：https://docs.docker.com/get-docker ）
-
-- 部署机器和 PS5 连接同一个路由器（确保在同一局域网）
-
-- 关闭部署机器的防火墙（或放行 5000、6667 端口，新手建议直接关闭，部署完成后可重新开启）
-
-### 2. 获取项目文件
-
-两种方式任选其一，新手推荐方式一（简单快捷）：
-
-#### 方式一：下载核心文件（推荐新手）
-
-1. 打开本项目 GitHub 仓库https://github.com/IceNoproblem/PS5BiliDanmaku，找到「danmaku_forward.py、Dockerfile、docker-compose.yml」三个文件。
-
-2. 分别点击每个文件，点击右上角「Download raw file」下载 确保下载的文件后缀无修改。
-
-3. 在部署机器上新建一个文件夹，命名为「PS5BiliDanmaku」，将下载的三个文件放入该文件夹（确保三个文件在同一目录，无其他多余文件）
-
-#### 方式二：克隆项目（新手可尝试，步骤简化）
-
-适合有基础、想快速获取项目的用户，全程无需手动修改命令，跟着来即可：
-
-
-打开部署机器的命令行（Windows 用 CMD/PowerShell，Linux/macOS 用终端）（未安装可参考 Git 官方教程：https://git-scm.com/downloads），安装完成后执行以下通用命令（无需修改，直接复制粘贴）：
+#### 一键启动
 
 ```bash
-#克隆项目文件到本地
+# 双击运行
+docker启动.bat
+```
+
+脚本会自动完成：
+- ✅ 检查 Docker 是否安装
+- ✅ 检查 Docker 服务状态
+- ✅ 停止旧容器
+- ✅ 构建新镜像
+- ✅ 启动所有服务
+- ✅ 自动打开 Web 管理界面
+
+#### 验证部署
+
+1. 访问 http://localhost:5000
+2. 看到 Web 界面表示部署成功
+3. 查看 Docker 容器状态：
+   ```bash
+   docker-compose ps
+   ```
+
+---
+
+### Linux/macOS 用户
+
+#### 前置步骤
+
+**Ubuntu/Debian：**
+```bash
+# 更新软件包
+sudo apt update
+
+# 安装 Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# 安装 Docker Compose
+sudo apt install docker-compose-plugin
+
+# 将当前用户添加到 docker 组
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+**CentOS/RHEL：**
+```bash
+# 安装 Docker
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install docker-ce docker-ce-cli containerd.io
+
+# 启动 Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# 安装 Docker Compose
+sudo yum install docker-compose-plugin
+```
+
+**macOS：**
+
+下载 Docker Desktop：https://www.docker.com/products/docker-desktop/
+
+#### 一键启动
+
+```bash
+# 赋予执行权限
+chmod +x docker-start.sh
+
+# 运行启动脚本
+./docker-start.sh
+```
+
+#### 验证部署
+
+1. 访问 http://localhost:5000
+2. 查看 Docker 容器状态：
+   ```bash
+   docker-compose ps
+   ```
+
+---
+
+## 📚 详细部署指南
+
+### 架构说明
+
+```
+┌─────────────────────────────────────────────────┐
+│              Docker Compose                       │
+├─────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐            │
+│  │  nginx-rtmp  │←→│ danmaku-     │            │
+│  │  (1935,8080, │  │ system      │            │
+│  │   80)        │  │ (5000,6667)  │            │
+│  └──────────────┘  └──────────────┘            │
+│        ↑                     ↑                 │
+│        └─────────────────────┘                 │
+│              ↓                                  │
+│       ┌─────────────┐                          │
+│       │ rtmp-monitor│                          │
+│       └─────────────┘                          │
+└─────────────────────────────────────────────────┘
+```
+
+### 服务说明
+
+#### 1. nginx-rtmp（RTMP 服务器）
+
+- **作用**：接收 PS5 的 RTMP 推流
+- **端口**：1935（推流）、8080（统计）、80（HTTP）
+- **镜像**：tiangolo/nginx-rtmp
+- **配置**：nginx-rtmp/nginx.conf
+
+#### 2. danmaku-system（弹幕转发系统）
+
+- **作用**：抓取 B 站弹幕并通过 IRC 转发到 PS5
+- **端口**：5000（Web）、6667（IRC）
+- **镜像**：自定义 Python 镜像
+- **核心文件**：danmaku_forward.py
+
+#### 3. rtmp-monitor（推流监控）
+
+- **作用**：监控 RTMP 推流状态并更新到 Web 界面
+- **端口**：无（内部通信）
+- **镜像**：同 danmaku-system
+- **核心文件**：monitor_rtmp.py
+
+### 手动部署步骤
+
+如果不想使用自动脚本，可以手动执行：
+
+#### 步骤 1：克隆或下载项目
+
+```bash
+# 如果有 Git
 git clone https://github.com/IceNoproblem/PS5BiliDanmaku.git
-#进入项目文件夹
 cd PS5BiliDanmaku
+
+# 或者直接下载解压
+unzip PS5BiliDanmaku-docker.zip
+cd PS5BiliDanmaku-docker
 ```
 
-### 3. 启动服务（核心步骤）
-
-1. 打开命令行/终端，进入「PS5BiliDanmaku」文件夹（新手可通过「cd 文件夹路径」进入，例如 Windows：cd C:\PS5BiliDanmaku）
-
-2. 复制粘贴以下命令，按下回车，等待自动构建镜像并启动服务（首次启动会下载依赖，耗时1-5分钟，耐心等待即可）：
-```bash
-#进入项目内部文件夹
-cd ps5-bilibili-danmaku
-#构建项目
-docker compose build --no-cache
-#启动
-docker compose up -d
-```
-
-4. 启动完成后，命令行不会报错，说明服务启动成功。
-
-### 4. 查看运行状态（确认服务正常）
-
-执行以下命令，查看服务运行日志，确认无报错：
+#### 步骤 2：构建镜像
 
 ```bash
-#查看日志
-docker compose logs -f
+# 构建所有服务的镜像
+docker-compose build
+
+# 或者只构建特定服务
+docker-compose build danmaku-system
 ```
 
-✅ 正常状态：日志中会显示「Web配置界面已启动」「IRC服务已启动」「开始监听B站直播间」等字样，无红色错误提示。
+首次构建可能需要 5-10 分钟，取决于网络速度。
 
-❌ 异常处理：若出现报错，可复制报错信息，参考「常见问题」排查，或提交Issue反馈。
+#### 步骤 3：启动服务
 
+```bash
+# 启动所有服务（后台运行）
+docker-compose up -d
 
-### 5. 后续操作指引
+# 启动所有服务（前台运行，可查看日志）
+docker-compose up
 
-服务启动成功后，下一步操作：
-
-- 访问 Web 配置面板，设置B站直播间ID（详见「配置说明」）
-
-- 在路由器上配置hosts或者DNS静态转发、DNS重定向之类的功能，配置参数如下：
-
-```plain text
-contribute.live-video.net              [IPv4] 192.168.xxx.xxx  # ip地址改为你安装本项目程序的机器地址
-global-contribute.live-video.net       [IPv4] 192.168.xxx.xxx  # ip地址改为你安装本项目程序的机器地址
-apn20.contribute.live-video.net        [IPv4] 192.168.xxx.xxx  # ip地址改为你安装本项目程序的机器地址
-tmi.twitch.tv                          [IPv4] 192.168.xxx.xxx  # ip地址改为你安装本项目程序的机器地址
-irc.twitch.tv                          [IPv4] 192.168.xxx.xxx  # ip地址改为你安装本项目程序的机器地址
+# 启动特定服务
+docker-compose up -d danmaku-system
 ```
+
+#### 步骤 4：查看日志
+
+```bash
+# 查看所有服务日志
+docker-compose logs -f
+
+# 查看特定服务日志
+docker-compose logs -f danmaku-system
+
+# 查看最近 100 行日志
+docker-compose logs --tail=100
+```
+
+#### 步骤 5：验证服务状态
+
+```bash
+# 查看容器状态
+docker-compose ps
+
+# 检查端口占用
+netstat -tlnp | grep -E "1935|5000|6667|8080"
+
+# 测试 Web 界面
+curl http://localhost:5000
+
+# 测试 RTMP 统计页面
+curl http://localhost:8080/stat
+```
+
+---
 
 ## ⚙️ 配置说明
 
-### Web配置面板
+### 首次配置
 
-服务启动后，通过浏览器访问Web管理面板，所有核心配置均可在此完成，无需修改代码：
+1. **访问 Web 管理界面**
 
-- 弹幕相关WEB面板：http://[部署机器IP]:5000
+   打开浏览器访问：http://localhost:5000
 
-- 推流相关WEB面板：http://[部署机器IP]:8081
+2. **配置 B站直播间**
 
-核心配置项说明（仅展示常用必要项，冗余参数已删除）：
+   - 输入 B站直播间 ID（例如：31517300）
+   - 点击"保存配置"
 
-- B站直播间ID：填写需要抓取弹幕的B站直播间数字ID（直播间地址后面的数字）
+3. **配置 PS5 IRC 连接**
 
-- PS5 IRC频道名：PS5连接时需使用的频道名称（Twitch用户名）
+   - 服务器地址：部署设备的局域网 IP（例如：192.168.1.100）
+   - 端口：6667
+   - 频道名：#PS5频道名（必须加 # 号）
 
-- 弹幕抓取间隔：设置弹幕抓取频率（建议3-5秒，过短可能触发API限制）
+4. **其他配置（可选）**
 
-## 🎮 PS5配置说明
+   - IRC 超时时间：默认 5 小时（18000 秒）
+   - 保留弹幕数量：默认 100 条
+   - 保留礼物数量：默认 20 个
+   - 保留日志数量：默认 50 条
+   - 重连延迟：默认 10 秒
 
-PS5端无需进行任何配置，但是开启Twitch直播可能需要开加速器
+### 配置文件位置
 
-### 使用方法
-
-1. 【完成上述所有流程】
-
-2. 【PS端开播】
-   启动PS5，玩游戏，按截屏键，选直播
-   使用Twitch直播，注册及绑定可能需要科学手段
-   
-3. 【验证dns劫持、重定向】是否正常
-   访问 http://[部署机器IP]:8081，页面下方有「live streams」，后面跟着一长串字符（例如 live_1348515979_DGbH2broJeGMhcxxxxxxxxxxxxxxx）
-   点一下这个live开头的链接，下方出现【publishin】 以及 【PlayStation5 1.0.0.0】字样，则确认劫持成功，你的电脑、NAS或软路由已经接受到PS5发送的画面视频流。
-   该地址只在ps5开始端点了twitch直播后出现，不在直播状态则不出现。
-   <img width="846" height="465" alt="123123123" src="https://github.com/user-attachments/assets/07f9324a-c013-4ce3-9a63-1c9074111742" />
-
-5. 【拉取视频流】
-    视频流地址格式为【rtmp://192.168.xxx.xx/app/live_xxxxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx】
-   【rtmp://[部署机器IP]/app/第3步显示的「live streams」链接】
-   
-5A. 打开直播姬，添加素材，选多媒体，在【选择视频文件】下面的输入框中输入【视频流地址】（不要点右侧的浏览按钮）
-5B. 打开OBS，添加源，选【媒体源】，取消勾选【本地文件】，在下面的【输入】输入框里输入【视频流地址】（其他保持不变）
-
-
-7. 【大功告成！】
-   如果上面都正确，稍等几秒钟，你的OBS或者直播姬就已经有画面了！恭喜，请开启您的直播间开始一场酣畅淋漓的直播吧！
-
-
-【特殊说明】
--切换游戏，直播会关闭，在PS5端重新点直播；
--回到首页或者特殊禁止录制界面，直播画面会空屏；
--PS5端显示的弹幕数据可以在PS键打开的控制中心中设置显示的位置；
--可以直接使用PS手柄麦克风跟直播间说话；
--PS派对功能的朋友说话声音是否推送给直播间可以在系统设置里面设定。
--如果直播间时间长没人发弹幕，系统会超时断开弹幕连接 默认为5分钟，可以在WEB设置里面修改（弹幕相关WEB面板：http://[部署机器IP]:5000）
-
-
-
-
-
-
-
-
-
-## 🐛 常见问题
-
-### Q1: Web面板无法访问
-
-- 检查5000端口是否被其他程序占用，可通过命令查看端口占用情况
-
-- 查看容器日志排查错误：docker compose logs -f
-
-- 确认Docker端口映射正确（配置文件中已默认映射5000:5000，无需修改）
-
-- 检查部署机器防火墙是否放行5000端口
-- 
-
-### Q2: 无法抓取弹幕
-
-- 确认B站直播间ID为数字ID（可在B站直播间地址中获取，如https://live.bilibili.com/669827，ID为669827）
-
-- 检查部署机器能否正常访问B站（可通过浏览器打开B站直播验证）
-
-- 查看日志中“抓取弹幕失败”的错误信息，排查网络或API限制问题
-
-- 若日志显示「抓取到X条新弹幕」，说明弹幕抓取正常，无需排查此问题
-
-### Q3: PS5无法连接IRC/日志提示「PS5连接超时，已清理」
-
-日志示例：
-
-```plain text
-2026-03-01 03:13:39,859 - 抓取到1条新弹幕
-2026-03-01 03:13:39,859 - PS5(('192.168.110.2', 53337)) 连接超时，已清理
-```
-
-日志含义：弹幕抓取功能正常，但PS5与部署机器的IRC连接中断/未建立
-
-排查步骤：
-
-1. 基础检查：
-        
-
-    - 确认PS5与部署机器在同一局域网（用PS5 ping部署机器IP，或电脑ping PS5 IP 192.168.110.2）
-
-    - 检查部署机器6667端口是否放行（防火墙/安全软件可能拦截）
-
-    - 重启PS5上的Twitch直播程序，重新发起直播连接
-  
-    - Web界面ps5超时数值延长
-
-2. 进阶排查：
-        
-
-    - 查看路由器是否开启「AP隔离」（开启会导致局域网设备无法互通，需关闭）
-
-    - 确认路由器DNS重定向配置正确（contribute.live-video.net等域名已指向部署机器IP）
-
-    - 更换PS5的网络连接方式（有线→无线/无线→有线），排除网络适配问题
-
-3. 临时解决方案：
-        
-
-    - 重启部署机器的Docker服务：`docker compose restart`
-
-    - 重启PS5网络设置（设置→网络→设置互联网连接→重新连接）
-
-### Q4: PS5上配置的频道名相关问题
-
-- 确认PS5上配置的频道名已添加#前缀，且与Web配置一致
-
-## 📁 项目结构
+配置文件保存在宿主机（容器外部），删除容器不会丢失：
 
 ```bash
-ps5-bilibili-danmaku/
-├── danmaku_forward.py    # 核心程序（弹幕抓取 + IRC服务 + Web管理）
-├── Dockerfile            # Docker镜像构建配置
-├── docker-compose.yml    # Docker容器编排配置
-├── config.json           # 配置文件（自动生成，无需手动修改）
-└── logs/                 # 日志目录（自动生成，存放运行日志）
+# Windows
+D:\PS5-Danmaku-Docker\logs\config.json
+
+# Linux/macOS
+./logs/config.json
 ```
+
+### 修改配置
+
+**方法一：通过 Web 界面修改**
+
+1. 访问 http://localhost:5000
+2. 修改配置参数
+3. 点击"保存配置"
+
+**方法二：直接编辑配置文件**
+
+1. 停止服务：
+   ```bash
+   docker-compose down
+   ```
+
+2. 编辑配置文件：
+   ```bash
+   # Windows
+   notepad logs\config.json
+
+   # Linux/macOS
+   vim logs/config.json
+   ```
+
+3. 重启服务：
+   ```bash
+   docker-compose up -d
+   ```
+
+---
+
+## 🎮 PS5 推流配置
+
+### 步骤 1：配置 DNS 重定向
+
+PS5 推流使用 Twitch 的 RTMP 服务器，需要通过 DNS 劫持将 Twitch 的推流地址重定向到本地。
+
+#### 方法一：路由器 DNS 劫持（推荐）
+
+1. **登录路由器管理界面**
+
+   通常是 192.168.1.1 或 192.168.0.1
+
+2. **添加 DNS 重定向规则**
+
+   | 域名 | 类型 | 值 |
+  ------|------|-----|
+   | live.twitch.tv | A | 你的服务器 IP |
+   | video-weaver.twitch.tv | A | 你的服务器 IP |
+
+3. **保存并重启路由器**
+
+#### 方法二：本地 hosts 文件（仅限本地测试）
+
+修改 hosts 文件添加：
+
+```
+# Windows
+C:\Windows\System32\drivers\etc\hosts
+
+# Linux/macOS
+/etc/hosts
+```
+
+添加内容：
+```
+服务器IP    live.twitch.tv
+服务器IP    video-weaver.twitch.tv
+```
+
+### 步骤 2：PS5 开启直播
+
+1. **安装 Twitch 应用**（PS5 应用商店）
+
+2. **登录 Twitch 账号**
+
+3. **选择要直播的游戏或应用**
+
+4. **点击开始直播**
+
+   PS5 会推流到本地服务器（通过 DNS 重定向）
+
+### 步骤 3：OBS/直播姬拉流
+
+#### OBS Studio
+
+1. **添加媒体源**
+
+   来源 → + → 媒体源
+
+2. **输入 RTMP 地址**
+
+   ```
+   rtmp://服务器IP/live/PS5推流码
+   ```
+
+3. **开始推流**
+
+#### 直播姬
+
+1. **添加直播源**
+
+   直播设置 → 直播源
+
+2. **输入 RTMP 地址**
+
+   ```
+   服务器：rtmp://服务器IP/live
+   串流密钥：PS5推流码
+   ```
+
+3. **开始直播**
+
+---
+
+## 🔧 常用命令
+
+### Docker Compose 命令
+
+```bash
+# 启动服务
+docker-compose up -d
+
+# 停止服务
+docker-compose down
+
+# 重启服务
+docker-compose restart
+
+# 查看日志
+docker-compose logs -f
+
+# 查看容器状态
+docker-compose ps
+
+# 构建镜像
+docker-compose build
+
+# 重新构建并启动
+docker-compose up -d --build
+
+# 删除所有容器和镜像
+docker-compose down --rmi all
+
+# 查看资源占用
+docker-compose top
+```
+
+### Docker 原生命令
+
+```bash
+# 查看运行中的容器
+docker ps
+
+# 查看所有容器（包括已停止）
+docker ps -a
+
+# 查看容器日志
+docker logs <容器ID>
+
+# 进入容器
+docker exec -it <容器ID> /bin/bash
+
+# 查看容器资源占用
+docker stats
+
+# 删除容器
+docker rm <容器ID>
+
+# 删除镜像
+docker rmi <镜像ID>
+```
+
+---
+
+## 🔍 故障排查
+
+### 问题 1：容器无法启动
+
+**症状**：`docker-compose up` 失败
+
+**解决方案**：
+
+1. 检查端口是否被占用：
+   ```bash
+   netstat -tlnp | grep -E "1935|5000|6667|8080"
+   ```
+
+2. 查看容器日志：
+   ```bash
+   docker-compose logs
+   ```
+
+3. 检查 Docker 是否正常运行：
+   ```bash
+   docker info
+   ```
+
+### 问题 2：Web 界面无法访问
+
+**症状**：http://localhost:5000 无法打开
+
+**解决方案**：
+
+1. 检查 danmaku-system 容器是否运行：
+   ```bash
+   docker-compose ps
+   ```
+
+2. 检查容器日志：
+   ```bash
+   docker-compose logs danmaku-system
+   ```
+
+3. 检查防火墙：
+   ```bash
+   # Linux
+   sudo ufw allow 5000
+
+   # Windows
+   # 控制面板 → 系统和安全 → Windows Defender 防火墙 → 允许应用通过防火墙
+   ```
+
+4. 尝试重启容器：
+   ```bash
+   docker-compose restart danmaku-system
+   ```
+
+### 问题 3：弹幕不显示
+
+**症状**：PS5 上看不到弹幕
+
+**解决方案**：
+
+1. 检查 B站直播间 ID 是否正确
+
+2. 检查 PS5 IRC 连接配置：
+   - 服务器地址是否正确
+   - 端口是否为 6667
+   - 频道名是否包含 # 号
+
+3. 检查弹幕转发系统日志：
+   ```bash
+   docker-compose logs danmaku-system
+   ```
+
+4. 检查网络连接：
+   ```bash
+   ping live.bilibili.com
+   ```
+
+5. 查看浏览器控制台（F12）是否有错误
+
+### 问题 4：RTMP 推流失败
+
+**症状**：PS5 推流后 OBS 无法拉流
+
+**解决方案**：
+
+1. 检查 RTMP 服务器是否运行：
+   ```bash
+   docker-compose ps nginx-rtmp
+   ```
+
+2. 检查 RTMP 统计页面：
+   访问 http://localhost:8080/stat
+
+3. 检查 DNS 配置是否正确
+
+4. 检查 PS5 是否开启加速器（Twitch 访问限制）
+
+5. 检查端口 1935 是否开放：
+   ```bash
+   telnet localhost 1935
+   ```
+
+### 问题 5：服务频繁重启
+
+**症状**：容器反复重启
+
+**解决方案**：
+
+1. 查看重启日志：
+   ```bash
+   docker-compose logs --tail=50
+   ```
+
+2. 检查资源占用：
+   ```bash
+   docker stats
+   ```
+
+3. 增加资源限制（修改 docker-compose.yml）：
+   ```yaml
+   deploy:
+     resources:
+       limits:
+         memory: 1G
+   ```
+
+4. 检查配置文件是否损坏
+
+### 问题 6：配置修改不生效
+
+**症状**：修改 Web 界面配置后没有效果
+
+**解决方案**：
+
+1. 检查配置文件是否保存：
+   ```bash
+   cat logs/config.json
+   ```
+
+2. 重启服务：
+   ```bash
+   docker-compose restart
+   ```
+
+3. 清除浏览器缓存后刷新页面
+
+---
+
+## 📝 版本更新日志
+
+### v1.0.0 (2026-03-21)
+
+**新增功能**：
+- ✅ 完整的 Docker 容器化部署
+- ✅ Docker Compose 多服务编排
+- ✅ 一键启动脚本（Windows 和 Linux/macOS）
+- ✅ 自动重启机制
+- ✅ 数据持久化支持
+- ✅ Web 可视化配置界面
+- ✅ RTMP 推流监控
+- ✅ 详细的部署文档
+
+**已知限制**：
+- ⚠️ 需要预先安装 Docker 和 Docker Compose
+- ⚠️ 首次构建镜像需要较长时间
+- ⚠️ 需要配置 DNS 重定向
+
+**待优化**：
+- [ ] 添加健康检查
+- [ ] 优化镜像大小（多阶段构建）
+- [ ] 添加监控面板（Grafana）
+- [ ] 支持多实例部署
+- [ ] 添加自动备份
+- [ ] 支持 HTTPS
+- [ ] 添加 Redis 缓存
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+### 贡献指南
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+---
 
 ## 📄 许可证
 
-本项目采用MIT许可证开源 - 详见 LICENSE 文件。
+本项目采用 GPL-3.0 许可证。
 
-## 📞 反馈与维护
+详见 [LICENSE](LICENSE) 文件。
 
-- 问题反馈：提交GitHub Issue报告bug或功能需求（https://github.com/IceNoproblem/PS5BiliDanmaku/issues）
+---
 
-- 日志查看：docker compose logs -f ps5-bilibili-danmaku
+## 📞 联系方式
 
-- 重启服务：docker compose restart
+- **作者**：IceNoproblem
+- **B站空间**：https://space.bilibili.com/2250922
+- **GitHub**：https://github.com/IceNoproblem
+- **问题反馈**：https://github.com/IceNoproblem/PS5BiliDanmaku/issues
 
-- 停止服务：docker compose down
+---
 
-## ✨ 版本更新
+## 🙏 致谢
 
-- v1.0: 基础功能 - 弹幕抓取+IRC转发，核心功能可用
+感谢以下开源项目：
 
-- v1.1: 新增Web配置面板，支持所有核心参数可视化修改
+- [tiangolo/nginx-rtmp](https://github.com/tiangolo/nginx-rtmp) - Nginx RTMP 模块
+- [Flask](https://flask.palletsprojects.com/) - Python Web 框架
+- [Docker](https://www.docker.com/) - 容器化平台
 
-- v1.2: 修复弹幕抓取异常、变量作用域等问题，优化稳定性，补充部署要求
+---
 
-- v1.3: 新增日志排查指引，优化PS5连接超时问题的排查步骤
+## 🔗 相关链接
+
+- [Windows 版本](https://github.com/IceNoproblem/PS5BiliDanmaku/tree/windows)
+- [详细部署文档](DOCKER_DEPLOY.md)
+- [快速开始指南](README_DOCKER.md)
+- [版本更新日志](DOCKER_CHANGELOG.md)
+
+---
+
+<div align="center">
+
+**如果这个项目对你有帮助，请给个 ⭐️ Star 支持一下！**
+
+Made with ❤️ by IceNoproblem
+
+</div>
