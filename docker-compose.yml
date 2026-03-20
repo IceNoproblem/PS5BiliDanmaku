@@ -6,8 +6,8 @@ services:
     container_name: ps5-danmaku-nginx
     ports:
       - "1935:1935"    # RTMP推流端口
-      - "8080:8080"    # RTMP统计页面
-      - "80:80"        # HTTP访问（可选）
+      - "8081:8080"    # RTMP统计页面
+      - "8082:80"        # HTTP访问（可选）
     volumes:
       - ./nginx-rtmp/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx-rtmp/logs:/var/log/nginx
