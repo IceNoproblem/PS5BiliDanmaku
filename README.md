@@ -17,23 +17,13 @@
 
 ---
 
+没有软路由、nas的windows电脑用户 直接看https://github.com/IceNoproblem/PS5BiliDanmaku/tree/windows
+
+
 ## 📖 项目简介
 
 PS5BiliDanmaku 是一款专为 NAS 和软路由设计的轻量级工具，通过 IRC 协议将 B 站直播弹幕转发到 PS5。采用 Docker 容器化部署，完美适配 OpenWrt、群晖 Synology、威联通 QNAP、Unraid 等主流 NAS 系统。
 
-### ✨ 核心特性
-
-- ✅ **超低资源占用**：CPU 使用率 < 5%，内存 < 200MB
-- ✅ **NAS/软路由完美适配**：支持 OpenWrt、群晖、威联通、Unraid
-- ✅ **Docker Compose 一键部署**：无需手动配置，3 分钟完成
-- ✅ **Web 可视化管理**：http://NAS-IP:5000，界面友好
-- ✅ **断电自动恢复**：容器自动重启，无需人工干预
-- ✅ **数据持久化**：配置和日志存储在本地，删除容器不丢失
-- ✅ **跨架构支持**：AMD64、ARM64、ARMv7 全覆盖
-
----
-
-## 🎯 适用场景
 
 ### 推荐部署环境
 
@@ -49,10 +39,10 @@ PS5BiliDanmaku 是一款专为 NAS 和软路由设计的轻量级工具，通过
 ### 硬件要求
 
 **最低配置：**
-- CPU：单核 1.5GHz+（ARM 或 x86）
+- CPU：单核 1.5GHz+（x86）
 - 内存：512MB
 - 存储：500MB 可用空间
-- 网络：千兆以太网
+- 网络：千兆局域网
 
 **推荐配置：**
 - CPU：双核 2.0GHz+
@@ -358,78 +348,6 @@ docker compose up -d
 
 ---
 
-## 📋 手动部署（通用方法）
-
-### 步骤 1：下载项目
-
-```bash
-# 方法一：Git 克隆
-git clone https://github.com/IceNoproblem/PS5BiliDanmaku.git
-cd PS5BiliDanmaku
-
-# 方法二：下载 ZIP
-wget https://github.com/IceNoproblem/PS5BiliDanmaku/archive/refs/heads/docker.zip
-unzip docker.zip
-cd PS5BiliDanmaku-docker
-```
-
-### 步骤 2：修改配置（可选）
-
-编辑 `docker-compose.yml`，根据需要修改：
-
-```yaml
-version: '3.8'
-
-services:
-  nginx-rtmp:
-    ports:
-      - "1935:1935"  # RTMP 推流端口
-      - "8080:8080"  # RTMP 统计端口
-      - "80:80"       # HTTP 端口
-
-  danmaku-system:
-    ports:
-      - "5000:5000"   # Web 管理界面
-      - "6667:6667"   # IRC 服务端口
-    volumes:
-      - ./logs:/app/logs  # 配置和日志持久化
-
-  rtmp-monitor:
-    # 无需修改
-```
-
-### 步骤 3：启动服务
-
-```bash
-# 使用 docker compose（Docker 20.10+）
-docker compose up -d
-
-# 或使用旧版 docker-compose
-docker-compose up -d
-```
-
-### 步骤 4：验证部署
-
-```bash
-# 1. 查看容器状态
-docker compose ps
-
-# 应该看到 3 个容器都在运行：
-# ps5-danmaku-docker-nginx-rtmp-1
-# ps5-danmaku-docker-danmaku-system-1
-# ps5-danmaku-docker-rtmp-monitor-1
-
-# 2. 查看 Web 界面
-# 浏览器打开 http://你的NAS IP:5000
-
-# 3. 查看日志
-docker compose logs -f
-
-# 4. 检查端口
-netstat -tlnp | grep -E "1935|5000|6667|8080"
-```
-
----
 
 ## ⚙️ 配置说明
 
@@ -442,13 +360,8 @@ netstat -tlnp | grep -E "1935|5000|6667|8080"
 2. **配置 B站直播间**
 
    - 输入 B站直播间 ID（例如：31517300）
-   - 点击"保存配置"
+   - 点击"保存配置" 并重启容器
 
-3. **配置 PS5 IRC 连接**
-
-   - 服务器地址：你的 NAS 局域网 IP（例如：192.168.1.100）
-   - 端口：6667
-   - 频道名：#PS5频道名（必须加 # 号）
 
 ### 配置文件位置
 
@@ -541,17 +454,17 @@ netstat -tlnp | grep -E "1935|5000|6667|8080"
 
 3. **保存并重启路由器**
 
-### 步骤 2：PS5 开启直播
 
-1. **安装 Twitch 应用**（PS5 应用商店）
 
-2. **登录 Twitch 账号**
 
-3. **选择要直播的游戏或应用**
+**打开要直播的游戏或应用**
 
-4. **点击开始直播**
+ **点击开始直播**
 
    PS5 会通过 DNS 劫持推流到本地 NAS
+
+
+   
 
 ### 步骤 3：OBS/直播姬拉流
 
@@ -564,7 +477,7 @@ netstat -tlnp | grep -E "1935|5000|6667|8080"
 2. **输入 RTMP 地址**
 
    ```
-   rtmp://NAS-IP/live/PS5推流码
+     服务器：rtmp://NAS-IP/app/live/PS5推流码
    ```
 
 3. **开始推流**
@@ -578,8 +491,7 @@ netstat -tlnp | grep -E "1935|5000|6667|8080"
 2. **输入 RTMP 地址**
 
    ```
-   服务器：rtmp://NAS-IP/live
-   串流密钥：PS5推流码
+   服务器：rtmp://NAS-IP/app/live/PS5推流码
    ```
 
 3. **开始直播**
@@ -728,10 +640,7 @@ docker restart <容器ID>
 
 1. **检查 B站直播间 ID 是否正确**
 
-2. **检查 PS5 IRC 连接配置**
-   - 服务器地址是否为 NAS 的 IP
-   - 端口是否为 6667
-   - 频道名是否包含 # 号
+2. **检查 PS5 IRC 连接**
 
 3. **查看弹幕系统日志**
 
@@ -832,82 +741,6 @@ chmod +x /etc/rc.local
 
 ---
 
-## 📊 性能优化
-
-### OpenWrt 性能优化
-
-1. **限制容器资源**
-
-   编辑 `docker-compose.yml`：
-
-   ```yaml
-   services:
-     danmaku-system:
-       deploy:
-         resources:
-           limits:
-             memory: 256M
-             cpus: '0.5'
-   ```
-
-2. **使用 overlay2 存储驱动**
-
-   ```bash
-   vi /etc/docker/daemon.json
-
-   {
-     "storage-driver": "overlay2"
-   }
-   ```
-
-3. **禁用 Docker 日志（减少写入）**
-
-   ```yaml
-   services:
-     danmaku-system:
-       logging:
-         driver: "none"
-   ```
-
-### 群晖性能优化
-
-1. **使用 SSD 缓存**
-
-   - 控制面板 → 存储空间管理 → 存储池
-   - 添加 SSD 缓存
-
-2. **设置 Docker 使用 SSD**
-
-   - Container Manager → 设置 → Docker
-   - Docker 数据夹选择 SSD
-
----
-
-## 📝 版本更新日志
-
-### v1.0.0 (2026-03-21)
-
-**新增功能**：
-- ✅ 专为 NAS 和软路由设计的 Docker 部署
-- ✅ 支持 OpenWrt、群晖、威联通、Unraid 等主流系统
-- ✅ 低资源占用（CPU < 5%，内存 < 200MB）
-- ✅ Docker Compose 一键部署
-- ✅ 完整的 NAS 部署文档
-- ✅ Web 可视化管理
-- ✅ 自动重启和持久化
-
-**优化**：
-- ⚡ 优化容器启动速度
-- ⚡ 减少镜像体积
-- ⚡ 支持多架构（ARM、x86）
-
-**待优化**：
-- [ ] 添加健康检查
-- [ ] 支持 Docker Swarm 集群部署
-- [ ] 添加监控面板
-- [ ] 支持 HTTPS 访问
-
----
 
 ## 🤝 贡献
 
