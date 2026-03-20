@@ -193,7 +193,7 @@ docker compose up -d
    **Nginx-RTMP：**
    - Name: `ps5-nginx-rtmp`
    - Repository: `tiangolo/nginx-rtmp`
-   - Ports: `1935:1935`, `8080:8080`, `80:80`
+   - Ports: `1935:1935`, `8081:8080`, `8082:80`
 
    **Danmaku-System：**
    - Name: `ps5-danmaku-system`
@@ -578,7 +578,7 @@ docker restart <容器ID>
 2. **检查端口是否被占用**
 
    ```bash
-   netstat -tlnp | grep -E "1935|5000|6667|8080"
+   netstat -tlnp | grep -E "1935|5000|6667|8081"
    ```
 
    如果端口被占用，修改 `docker-compose.yml` 中的端口映射
