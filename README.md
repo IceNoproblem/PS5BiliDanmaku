@@ -1,4 +1,14 @@
+# 请注意 windows版请移步https://github.com/IceNoproblem/PS5BiliDanmaku/tree/windows
+
+
 # PS5BiliDanmaku - Docker 版本
+
+
+
+
+
+
+
 
 <div align="center">
 
