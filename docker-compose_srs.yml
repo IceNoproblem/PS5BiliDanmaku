@@ -1,16 +1,15 @@
 version: '3.8'
 
 services:
-  nginx-rtmp:
-    image: tiangolo/nginx-rtmp:latest
-    container_name: ps5-danmaku-nginx
+  srs-server:
+    image: ossrs/srs:5
+    container_name: ps5-danmaku-srs
     ports:
       - "1935:1935"    # RTMP推流端口
-      - "8080:8080"    # RTMP统计页面
-      - "8081:80"      # HTTP访问（可选）
+      - "1985:1985"    # HTTP API端口
+      - "8080:8080"    # HTTP-FLV和HLS
     volumes:
-      - ./nginx-rtmp/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx-rtmp/logs:/var/log/nginx
+      - ./srs.conf:/usr/local/srs/conf/srs.conf:ro
     restart: unless-stopped
     networks:
       - ps5-danmaku-network
@@ -29,11 +28,11 @@ services:
       - ./logs:/app/logs
       - ./room_history.json:/app/room_history.json
     depends_on:
-      - nginx-rtmp
+      - srs-server
     restart: unless-stopped
     environment:
-      - NGINX_RTMP_HOST=nginx-rtmp
-      - NGINX_RTMP_PORT=1935
+      - SRS_HOST=srs-server
+      - SRS_PORT=1935
     networks:
       - ps5-danmaku-network
 
@@ -47,19 +46,18 @@ services:
       - ./config.json:/app/config.json
       - ./logs:/app/logs
     depends_on:
-      - nginx-rtmp
+      - srs-server
       - danmaku-system
     restart: unless-stopped
     environment:
-      # 使用环境变量传递 nginx 容器地址
-      - NGINX_RTMP_HOST=nginx-rtmp
-      - NGINX_RTMP_STAT_PORT=8080
+      # 使用环境变量传递 SRS 容器地址
+      - RTMP_MONITOR_URL=http://srs-server:1985/api/v1/streams/
       - DANMAKU_API_URL=http://danmaku-system:5000/api/rtmp/status/update
       - DOCKER_ENV=true  # 标记 Docker 环境，禁用 input()
+      - RTMP_SERVER_TYPE=srs
     networks:
       - ps5-danmaku-network
 
 networks:
   ps5-danmaku-network:
     driver: bridge
-

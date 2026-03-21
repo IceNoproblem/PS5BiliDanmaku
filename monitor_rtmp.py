@@ -39,13 +39,9 @@ NGINX_RTMP_HOST = os.getenv('NGINX_RTMP_HOST', 'nginx-rtmp')
 NGINX_RTMP_STAT_PORT = os.getenv('NGINX_RTMP_STAT_PORT', '8080')
 
 # RTMP服务器监控API地址（使用 Docker 容器名称）
-RTMP_MONITOR_URL = f"http://{NGINX_RTMP_HOST}:{NGINX_RTMP_STAT_PORT}/stat"
-
-# 监控间隔（秒）
-CHECK_INTERVAL = 2
-
-# RTMP服务器类型：'playstation', 'nginx-rtmp', 'custom'
-RTMP_SERVER_TYPE = 'nginx-rtmp'
+# 优先使用环境变量，否则使用默认值
+RTMP_MONITOR_URL = os.getenv('RTMP_MONITOR_URL', f"http://{NGINX_RTMP_HOST}:{NGINX_RTMP_STAT_PORT}")
+RTMP_SERVER_TYPE = os.getenv('RTMP_SERVER_TYPE', 'nginx-rtmp')
 
 # 推流码前缀（PS5推流时通常会生成）
 STREAM_KEY_PREFIX = "live_"
@@ -86,7 +82,9 @@ class RTMPMonitor:
         根据不同的服务器类型解析不同的API响应格式
         """
         try:
-            if self.server_type == 'playstation':
+            if self.server_type == 'srs':
+                return self._get_srs_status()
+            elif self.server_type == 'playstation':
                 return self._get_playstation_status()
             elif self.server_type == 'nginx-rtmp':
                 return self._get_nginx_status()
@@ -201,6 +199,60 @@ class RTMPMonitor:
 
         except Exception as e:
             logger.error(f"解析nginx-rtmp状态失败: {e}")
+            return {"active": False}
+
+    def _get_srs_status(self) -> Dict:
+        """
+        获取 SRS 状态
+        SRS 提供 JSON 格式的 API
+        """
+        try:
+            resp = requests.get(self.rtmp_url, timeout=5, proxies={})
+            if resp.status_code != 200:
+                return {"active": False}
+
+            data = resp.json()
+
+            # SRS API 返回格式
+            if data.get("code") == 0:
+                streams = data.get("data", {}).get("streams", [])
+
+                if streams:
+                    # 取第一个流
+                    s = streams[0]
+
+                    # 提取信息
+                    stream_key = s.get("name", "")
+
+                    # 视频信息
+                    video = s.get("video", {})
+                    width = video.get("width", 1920)
+                    height = video.get("height", 1080)
+                    codec = video.get("codec", "H.264")
+                    resolution = f"{width}x{height}"
+
+                    # 帧率
+                    fps = s.get("fps", 60)
+
+                    # 码率
+                    kbps = s.get("kbps", {})
+                    bitrate = kbps.get("total", 0)
+
+                    logger.debug(f"SRS 流信息: {stream_key} | {resolution} | {fps}fps | {bitrate}kbps")
+
+                    return {
+                        "active": True,
+                        "stream_key": stream_key,
+                        "encoding": codec,
+                        "bitrate": bitrate,
+                        "resolution": resolution,
+                        "fps": fps
+                    }
+
+            return {"active": False}
+
+        except Exception as e:
+            logger.error(f"解析 SRS 状态失败: {e}")
             return {"active": False}
 
     def _get_custom_status(self) -> Dict:

@@ -1,10 +1,4 @@
-# 请注意 windows版请移步https://github.com/IceNoproblem/PS5BiliDanmaku/tree/windows
-
-
 # PS5BiliDanmaku - Docker 版本
-
-
-
 
 <div align="center">
 
@@ -58,7 +52,7 @@ PS5BiliDanmaku 是一款专为 NAS 和软路由设计的轻量级工具，通过
 - CPU：单核 1.5GHz+（ARM 或 x86）
 - 内存：512MB
 - 存储：500MB 可用空间
-- 网络：千兆局域网
+- 网络：千兆以太网
 
 **推荐配置：**
 - CPU：双核 2.0GHz+
