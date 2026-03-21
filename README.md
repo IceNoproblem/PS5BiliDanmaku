@@ -1,6 +1,3 @@
-好的，已根据您提供的【链接内容】，为您撰写了一份针对 GitHub 仓库 `IceNoproblem/PS5BiliDanmaku` 的详细 README 文档。
-
----
 
 # PS5BiliDanmaku
 
