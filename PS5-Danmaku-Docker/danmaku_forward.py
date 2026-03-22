@@ -153,13 +153,21 @@ for noisy in ['urllib3', 'requests', 'flask', 'werkzeug', 'aiohttp']:
 def load_config():
     global CONFIG
     try:
+        logger.info(f"正在加载配置: {CONFIG_FILE}")
+        # 检查是否是目录（Docker volume 挂载问题）
+        if os.path.isdir(CONFIG_FILE):
+            logger.error(f"配置文件路径是目录而非文件，删除并重新创建: {CONFIG_FILE}")
+            import shutil
+            shutil.rmtree(CONFIG_FILE)
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 loaded = json.load(f)
+                logger.info(f"配置文件内容: 房间={loaded.get('BILIBILI_ROOM_ID', 'N/A')}, 文件大小={os.path.getsize(CONFIG_FILE)} bytes")
                 for k, v in loaded.items():
                     if k in DEFAULT_CONFIG:
                         CONFIG[k] = v
         else:
+            logger.warning(f"配置文件不存在，创建默认配置: {CONFIG_FILE}")
             save_config()
     except Exception as e:
         logger.error(f"加载配置失败: {e}，使用默认配置")
@@ -229,6 +237,9 @@ def save_config(new_config=None):
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(CONFIG, f, ensure_ascii=False, indent=4)
+            f.flush()
+            os.fsync(f.fileno())  # 强制同步到磁盘，确保 Docker volume 挂载正确
+        logger.info(f"配置已保存: {CONFIG_FILE} | 房间: {CONFIG.get('BILIBILI_ROOM_ID')}")
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
 
@@ -465,11 +476,17 @@ def qr_login_thread():
 
 
 def logout_bili():
-    """退出登录（清除Cookie文件）"""
+    """退出登录（清空Cookie文件并持久化到config.json）"""
     global CONFIG
     try:
-        if os.path.exists(COOKIE_FILE):
-            os.remove(COOKIE_FILE)
+        # 注意：Docker volume 挂载时不能删除文件（会报 IsADirectoryError 或权限错误）
+        # 改为清空文件内容写入 {} 而非 os.remove
+        try:
+            with open(COOKIE_FILE, 'w', encoding='utf-8') as f:
+                f.write('{}')
+        except Exception as cookie_err:
+            logger.warning(f"清空Cookie文件失败（已忽略，继续清除内存）: {cookie_err}")
+
         CONFIG["BILIBILI_SESSDATA"] = ""
         CONFIG["BILIBILI_BILI_JCT"] = ""
         CONFIG["BILIBILI_UID"] = 0
@@ -477,6 +494,12 @@ def logout_bili():
         LOGIN_STATE["status"] = "idle"
         LOGIN_STATE["uname"] = ""
         LOGIN_STATE["uid"] = 0
+        # 同步保存到 config.json，否则重启后登录态会复原
+        try:
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(CONFIG, f, ensure_ascii=False, indent=4)
+        except Exception as save_err:
+            logger.warning(f"退出登录时保存config失败（Cookie已清除）: {save_err}")
         logger.info("已退出B站账号")
         return True
     except Exception as e:
@@ -1451,7 +1474,46 @@ WEB_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>阿冰没问题（Icenoproblem）PS5 哔哩哔哩 直播系统 V3.0</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+/* ===== 内联 Font Awesome 精简版（离线可用，无需 CDN） ===== */
+@font-face{font-family:"FA";font-style:normal;font-weight:900;src:url("data:font/woff2;base64,d09GMgABAAAAAAYwAA0AAAAADEgAAAXbAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbEBwaBmAAg0QRCAqKCIkKCwYAATYCJAMsBCAFgxoHIBuJCmRRVVKlMrI2TmQXf/P9733u3U3T/ZuZ+9693Pu+773c+9sBSGHiapUAEBkUCAdAA8DuTQAGmhJwEQe8oGAHQAMSWvwBWnz99TUd+6OmAlJAoQWqKMIhJO0goTGFwsJCxZmDhEbLuovSVVVVmqjLt+e+iX8n/zX5P/L9q5W3/wuq7O9TH1pCiIgRERIRIiKkmFlxM8J2OJCqE3OGSQ8M3mhEgOCL8IHGagigABIg3jXs0FzXf+u+BNK6nSZJBFJAiwBJBEkCSQIJAokDJAlkCUABAAAAAAAAAAAAAAAAAAAAAAAA") format("woff2");font-display:block}
+.fas,.far,.fa{font-family:"FA"!important;font-style:normal;font-variant:normal;text-rendering:auto;-webkit-font-smoothing:antialiased;display:inline-block;line-height:1}
+/* 用 Unicode emoji/符号 代替图标，完全离线，零依赖 */
+.fa-gamepad::before{content:"🎮"}
+.fa-user-circle::before{content:"👤"}
+.fa-check-circle::before{content:"✅"}
+.fa-user-slash::before{content:"🚫"}
+.fa-sign-out-alt::before{content:"🚪"}
+.fa-qrcode::before{content:"📷"}
+.fa-info-circle::before{content:"ℹ️"}
+.fa-cog::before{content:"⚙️"}
+.fa-tv::before{content:"📺"}
+.fa-trash-alt::before{content:"🗑"}
+.fa-history::before{content:"🕐"}
+.fa-list::before{content:"📋"}
+.fa-gift::before{content:"🎁"}
+.fa-terminal::before{content:"💻"}
+.fa-redo::before{content:"🔄"}
+.fa-save::before{content:"💾"}
+.fa-sync-alt::before,.fa-sync::before{content:"🔃"}
+.fa-exclamation-triangle::before{content:"⚠️"}
+.fa-exclamation-circle::before{content:"❗"}
+.fa-tachometer-alt::before{content:"📊"}
+.fa-video::before{content:"🎬"}
+.fa-stream::before{content:"📡"}
+.fa-copy::before{content:"📋"}
+.fa-code::before{content:"</> "}
+.fa-expand::before{content:"⛶ "}
+.fa-clock::before,.far.fa-clock::before{content:"🕐"}
+.fa-comment-dots::before{content:"💬"}
+.fa-download::before{content:"⬇"}
+.fa-times::before{content:"✕"}
+.fa-anchor::before{content:"⚓"}
+.fa-comment-dollar::before{content:"💰"}
+/* 让 emoji 图标尺寸和间距合理 */
+.fas::before,.far::before,.fa::before{font-style:normal;margin-right:2px}
+/* ===== 内联 FA 结束 ===== */
+</style>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI','Microsoft YaHei',sans-serif}
 body{background:linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%);min-height:100vh;color:#e6edf3;padding:16px}
@@ -1624,7 +1686,7 @@ body{background:linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%);min-
       <div class="card-title"><i class="fas fa-user-circle"></i> B站账号</div>
       <div class="login-bar">
         {% if BILIBILI_UNAME %}
-        <img class="login-avatar" src="https://i0.hdslb.com/bfs/face/default_avatar.jpg" alt="">
+        <img class="login-avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Ccircle cx='17' cy='17' r='17' fill='%237b2ff7'/%3E%3Ccircle cx='17' cy='14' r='6' fill='%23fff' fill-opacity='.9'/%3E%3Cellipse cx='17' cy='28' rx='10' ry='7' fill='%23fff' fill-opacity='.9'/%3E%3C/svg%3E" alt="">
         <div class="login-info">
           <div class="uname">{{ BILIBILI_UNAME }}</div>
           <div class="uid">UID: {{ BILIBILI_UID }}</div>
@@ -1688,7 +1750,7 @@ body{background:linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%);min-
       <div class="irc-info">
         <b>🎮 PS5 弹幕连接：</b><br>
         需劫持ps5 dns给本机服务器地址 ：<br>
-        服务器地址：<b>{{ local_ip }}</b>（你的电脑IP）<br>
+        服务器地址：<b id="irc-server-ip">检测中...</b>（你的电脑IP）<br>
         端口：<b>6667</b><br>
         劫持目标：<b>contribute.live-video.net </b><br>
                         <b>global-contribute.live-video.net</b><br>
@@ -2117,8 +2179,9 @@ function updateRtmpStatus() {
     // 更新各个字段
     const fields = ['key', 'encoding', 'bitrate', 'resolution', 'fps', 'last-update'];
 
-    // 使用检测到的IP地址或模板变量
-    const detectedIP = window.detectedIP || "{{ local_ip }}";
+    // 使用检测到的IP地址或模板变量（Docker 环境下 local_ip 可能是 "auto"，此时完全依赖前端检测）
+    let detectedIP = window.detectedIP || "{{ local_ip }}";
+    if (detectedIP === "auto" || !detectedIP) detectedIP = window.location.hostname || "请刷新页面获取IP";
 
     // 码率显示: 同时显示 Mb/s 和 kbps
     let bitrateDisplay = '-';
@@ -2413,6 +2476,10 @@ function detectAccessIP() {
     // 保存检测到的 IP 地址
     window.detectedIP = hostname;
 
+    // 同步更新设置页的"服务器地址"显示（与推流码 IP 保持一致）
+    const ircIpEl = document.getElementById('irc-server-ip');
+    if (ircIpEl) ircIpEl.textContent = hostname;
+
     console.log('检测到访问地址:', hostname);
   } catch(err) {
     console.error('检测访问地址失败:', err);
@@ -2427,109 +2494,92 @@ function detectAccessIP() {
 # ==================== Web 路由 ====================
 def get_local_ip() -> str:
     """
-    获取本地 IP 地址
-    优先使用环境变量 EXTERNAL_IP（Docker 环境）
-    否则自动检测外部网络接口 IP
+    获取本地 IP 地址（供推流码兜底和日志打印使用）
+    Docker 环境下：优先用 EXTERNAL_IP 环境变量，否则返回 "auto"（由前端动态检测）
+    本地环境：自动检测局域网 IP
     """
-    # 优先使用环境变量（Docker 部署时可以设置）
-    external_ip = os.getenv('EXTERNAL_IP')
-    if external_ip and external_ip != 'auto':
-        logger.info(f"使用环境变量 EXTERNAL_IP: {external_ip}")
-        return external_ip
+    # Docker 环境：直接读环境变量，不再尝试复杂探测（前端已接管动态检测）
+    if os.getenv('DOCKER_ENV'):
+        external_ip = os.getenv('EXTERNAL_IP')
+        if external_ip and external_ip != 'auto':
+            return external_ip
+        # 返回 "auto" 表示让前端自行检测，不再在容器里折腾
+        return "auto"
 
-    # Docker 环境下，尝试获取宿主机的物理网卡 IP
+    # 本地环境（非 Docker）：简单检测一下局域网 IP
     import socket
-    import struct
-    import subprocess
-
-    # 方法1: 通过连接 host.docker.internal 获取宿主机IP（Docker Desktop 推荐）
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(2)
-        # 尝试连接 host.docker.internal（Docker Desktop 提供的宿主机别名）
-        s.connect(("host.docker.internal", 80))
+        s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
-        logger.info(f"通过 host.docker.internal 获取宿主机IP: {ip}")
         return ip
-    except Exception as e:
-        logger.debug(f"通过 host.docker.internal 获取IP失败: {e}")
-
-    # 方法2: 从 /proc/net/route 获取默认网关（宿主机在Docker网桥中的IP）
-    try:
-        with open('/proc/net/route', 'r') as f:
-            for line in f:
-                fields = line.strip().split()
-                if len(fields) >= 2 and fields[1] == '00000000':  # 目标 0.0.0.0 的路由
-                    gateway_hex = fields[2]
-                    if gateway_hex == '00000000':
-                        continue
-                    # 转换为 IP（使用小端序）
-                    gateway = socket.inet_ntoa(struct.pack('<I', int(gateway_hex, 16)))
-                    logger.info(f"从 /proc/net/route 获取宿主机IP: {gateway}")
-                    return gateway
-    except Exception as e:
-        logger.debug(f"从 /proc/net/route 获取IP失败: {e}")
-
-    # 方法3: 通过 ip route 命令获取默认网关
-    try:
-        result = subprocess.run(['ip', 'route', 'get', '1.1.1.1'], capture_output=True, text=True, timeout=2)
-        if result.returncode == 0:
-            # 解析输出，查找 src 字段
-            for line in result.stdout.split('\n'):
-                if 'src' in line:
-                    parts = line.split()
-                    src_idx = parts.index('src')
-                    if src_idx + 1 < len(parts):
-                        ip = parts[src_idx + 1]
-                        logger.info(f"通过 ip route 获取宿主机IP: {ip}")
-                        return ip
-    except Exception as e:
-        logger.debug(f"通过 ip route 获取IP失败: {e}")
-
-    # 方法4: 通过解析容器的默认网关（docker0 或 eth0 的网关）
-    try:
-        result = subprocess.run(['ip', 'route', 'show', 'default'], capture_output=True, text=True, timeout=2)
-        if result.returncode == 0:
-            # 格式：default via 172.19.0.1 dev eth0
-            parts = result.stdout.split()
-            if len(parts) >= 3 and parts[0] == 'default' and parts[1] == 'via':
-                ip = parts[2]
-                logger.info(f"通过 ip route show default 获取宿主机IP: {ip}")
-                return ip
-    except Exception as e:
-        logger.debug(f"通过 ip route show default 获取IP失败: {e}")
-
-    # 方法5: 回退到本地回环地址
-    logger.warning("无法获取宿主机IP，使用 127.0.0.1")
-    return "127.0.0.1"
+    except Exception:
+        return "127.0.0.1"
 
 
 def start_web(irc_server):
     app = Flask("ps5-danmaku-web")
     app.config['JSON_AS_ASCII'] = False
 
+    # ── HTML 预渲染缓存，避免每次请求都重新渲染几千行模板 ────────────
+    _html_cache: dict = {"html": None, "config_sig": None}
+
+    def _get_cached_html(local_ip: str) -> str:
+        """只有配置发生变化时才重新渲染模板，否则直接返回缓存"""
+        # 用登录用户名+UID 作为签名，登录/退出时缓存自动失效
+        sig = (
+            CONFIG.get("BILIBILI_UNAME", ""),
+            CONFIG.get("BILIBILI_UID", 0),
+            CONFIG.get("BILIBILI_ROOM_ID", 0),
+            CONFIG.get("ENABLE_GIFT", True),
+        )
+        if _html_cache["html"] is None or _html_cache["config_sig"] != sig:
+            _html_cache["html"] = render_template_string(WEB_HTML,
+                BILIBILI_ROOM_ID=CONFIG["BILIBILI_ROOM_ID"],
+                TWITCH_CHANNEL=CONFIG["TWITCH_CHANNEL"],
+                HEARTBEAT_TIMEOUT=CONFIG["HEARTBEAT_TIMEOUT"],
+                RECONNECT_DELAY=CONFIG["RECONNECT_DELAY"],
+                MAX_SEEN_DANMAKU=CONFIG["MAX_SEEN_DANMAKU"],
+                MAX_SEEN_GIFT=CONFIG["MAX_SEEN_GIFT"],
+                MAX_LOG_ITEMS=CONFIG.get("MAX_LOG_ITEMS", 50),
+                BILIBILI_UNAME=CONFIG.get("BILIBILI_UNAME", ""),
+                BILIBILI_UID=CONFIG.get("BILIBILI_UID", 0),
+                ENABLE_GIFT=CONFIG["ENABLE_GIFT"],
+                irc_running=IRC_RUNNING,
+                ws_running=WS_RUNNING,
+                active_clients=len(ACTIVE_CONNECTIONS),
+                danmaku_count=DANMAKU_COUNT,
+                gift_count=GIFT_COUNT,
+                sc_count=SC_COUNT,
+                local_ip=local_ip,
+            )
+            _html_cache["config_sig"] = sig
+        return _html_cache["html"]
+
     @app.route('/')
     def index():
-        return render_template_string(WEB_HTML,
-            BILIBILI_ROOM_ID=CONFIG["BILIBILI_ROOM_ID"],
-            TWITCH_CHANNEL=CONFIG["TWITCH_CHANNEL"],
-            HEARTBEAT_TIMEOUT=CONFIG["HEARTBEAT_TIMEOUT"],
-            RECONNECT_DELAY=CONFIG["RECONNECT_DELAY"],
-            MAX_SEEN_DANMAKU=CONFIG["MAX_SEEN_DANMAKU"],
-            MAX_SEEN_GIFT=CONFIG["MAX_SEEN_GIFT"],
-            MAX_LOG_ITEMS=CONFIG.get("MAX_LOG_ITEMS", 50),
-            BILIBILI_UNAME=CONFIG.get("BILIBILI_UNAME", ""),
-            BILIBILI_UID=CONFIG.get("BILIBILI_UID", 0),
-            ENABLE_GIFT=CONFIG["ENABLE_GIFT"],
-            irc_running=IRC_RUNNING,
-            ws_running=WS_RUNNING,
-            active_clients=len(ACTIVE_CONNECTIONS),
-            danmaku_count=DANMAKU_COUNT,
-            gift_count=GIFT_COUNT,
-            sc_count=SC_COUNT,
-            local_ip=get_local_ip()
-        )
+        from flask import make_response
+        import gzip
+        html = _get_cached_html(get_local_ip())
+        
+        # Gzip 压缩响应（46KB HTML 压缩后约 8KB）
+        accept_encoding = request.headers.get('Accept-Encoding', '')
+        if 'gzip' in accept_encoding:
+            gzip_buffer = gzip.compress(html.encode('utf-8'), compresslevel=6)
+            resp = make_response(gzip_buffer)
+            resp.headers['Content-Encoding'] = 'gzip'
+            resp.headers['Content-Length'] = len(gzip_buffer)
+        else:
+            resp = make_response(html)
+        
+        resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+        # 强制禁用所有缓存，确保每次刷新都是最新内容
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
 
     @app.route('/test')
     def test_page():
@@ -2571,7 +2621,7 @@ def start_web(irc_server):
 
     @app.route('/save_config', methods=['POST'])
     def save_config_route():
-        global NEED_RECONNECT, NEW_ROOM_ID
+        global NEED_RECONNECT, NEW_ROOM_ID, _GLOBAL_BILI_CLIENT
         try:
             data = request.get_json()
             if not data:
@@ -2589,9 +2639,10 @@ def start_web(irc_server):
                 except:
                     pass
 
+            # 先保存配置（不重启）
             save_config(data)
 
-            # 如果房间ID改变了，添加到历史记录
+            # 如果房间ID改变了，热切换到新直播间
             if new_room_id and new_room_id != old_room_id:
                 try:
                     # 尝试异步获取直播间信息
@@ -2608,40 +2659,33 @@ def start_web(irc_server):
                     # 即使获取失败也添加到历史
                     add_room_to_history(new_room_id)
 
-            # 自动重启程序
-            _add_web_log("info", "配置已保存，正在重启程序...")
-            logger.info("配置已保存，正在重启程序...")
+                # 热切换到新直播间（不重启程序）
+                if _GLOBAL_BILI_CLIENT:
+                    try:
+                        # 创建新的事件循环来执行异步切换
+                        def switch_room_async():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                loop.run_until_complete(_GLOBAL_BILI_CLIENT.switch_room(new_room_id))
+                                _add_web_log("success", f"已切换到直播间: {new_room_id}")
+                                logger.info(f"已热切换到直播间: {new_room_id}")
+                            except Exception as e:
+                                logger.error(f"切换直播间失败: {e}")
+                                _add_web_log("error", f"切换直播间失败: {e}")
+                            finally:
+                                loop.close()
 
-            # 使用线程延迟重启，给前端足够时间显示消息
-            def delayed_restart():
-                import time
-                import subprocess
-                import sys
-                time.sleep(1.5)  # 等待1.5秒让前端显示消息
-                logger.info("正在重启程序...")
+                        # 在后台线程中执行切换
+                        switch_thread = threading.Thread(target=switch_room_async, daemon=True)
+                        switch_thread.start()
 
-                # 检查是否在 Docker 环境中
-                is_docker = os.getenv('DOCKER_ENV', '').lower() == 'true'
+                        return jsonify({"code": 0, "msg": f"配置已保存，正在切换到直播间 {new_room_id}..."})
+                    except Exception as e:
+                        logger.error(f"启动切换线程失败: {e}")
+                        return jsonify({"code": 0, "msg": "配置已保存，但切换直播间失败，请手动刷新页面"})
 
-                try:
-                    if is_docker:
-                        # Docker 环境: 退出容器让 Docker 自动重启
-                        logger.info("Docker 环境,退出容器让 Docker 自动重启...")
-                        sys.exit(0)
-                    else:
-                        # 本地环境: 使用 subprocess 重新启动
-                        if sys.platform == 'win32':
-                            subprocess.Popen([sys.executable, os.path.abspath(__file__)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-                        else:
-                            subprocess.Popen([sys.executable, os.path.abspath(__file__)])
-                        sys.exit(0)
-                except Exception as e:
-                    logger.error(f"重启失败: {e}")
-
-            restart_thread = threading.Thread(target=delayed_restart, daemon=True)
-            restart_thread.start()
-
-            return jsonify({"code": 0, "msg": "配置已保存，程序正在重启，请稍候..."})
+            return jsonify({"code": 0, "msg": "配置已保存"})
 
         except Exception as e:
             return jsonify({"code": 1, "msg": f"保存失败: {e}"})
